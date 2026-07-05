@@ -1,0 +1,1397 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Roadbook Multi-GPX</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f8f9fb;--surface:#ffffff;--surface2:#f0f2f6;--border:#dde2ea;
+  --text:#1a2030;--muted:#8a96a8;--accent:#1a6adf;
+  --main:#e8203a;--escape:#8822cc;--alt:#008844;
+  --escape-dim:#6618aa;--alt-dim:#006633;
+}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;}
+
+/* ── HEADER ── */
+header{padding:16px 24px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+header h1{font-size:1rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);}
+header .badge{font-size:.68rem;color:var(--muted);letter-spacing:.06em;}
+
+/* ── LAYOUT ── */
+.app{display:grid;grid-template-columns:280px 1fr;flex:1;min-height:0;}
+@media(max-width:900px){.app{grid-template-columns:1fr;}}
+
+/* ── SIDEBAR ── */
+aside{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.sidebar-head{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.sidebar-head span{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);}
+
+#drop-zone{
+  margin:12px;border:2px dashed var(--border);border-radius:8px;padding:24px 12px;
+  text-align:center;cursor:pointer;transition:border-color .2s,background .2s;
+}
+#drop-zone:hover,#drop-zone.drag-over{border-color:var(--accent);background:#eef4ff;}
+#drop-zone p{font-size:.78rem;color:var(--muted);margin-bottom:10px;}
+#drop-zone strong{color:var(--accent);}
+#file-btn{display:inline-block;padding:6px 14px;background:#eef2f8;border:1px solid var(--border);border-radius:5px;color:var(--accent);font-size:.75rem;cursor:pointer;}
+#file-input{display:none;}
+
+#track-list{flex:1;overflow-y:auto;padding:8px;}
+.track-item{background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden;transition:border-color .2s;}
+.track-item.hidden-track{opacity:.45;}
+.track-header{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;}
+.track-swatch{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
+.track-label{flex:1;font-size:.8rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.track-toggle{width:28px;height:16px;border-radius:8px;border:none;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0;}
+.track-toggle::after{content:'';position:absolute;width:12px;height:12px;border-radius:50%;background:#fff;top:2px;transition:left .15s;}
+.track-toggle.on{background:var(--accent);}.track-toggle.on::after{left:14px;}
+.track-toggle.off{background:#c8d0dc;}.track-toggle.off::after{left:2px;}
+.track-body{padding:0 12px 10px;border-top:1px solid var(--border);}
+.track-meta{display:flex;gap:10px;padding:8px 0 6px;flex-wrap:wrap;}
+.track-meta .m{font-size:.7rem;color:var(--muted);}.track-meta .m b{color:var(--text);}
+.type-row{display:flex;gap:5px;margin-bottom:0;}
+.type-btn{flex:1;padding:4px 2px;border:1px solid var(--border);border-radius:5px;background:transparent;color:var(--muted);font-size:.68rem;cursor:pointer;text-align:center;transition:all .15s;letter-spacing:.03em;}
+.type-btn:hover{border-color:var(--accent);color:var(--text);}
+.type-btn.active-main{background:#ff335518;border-color:var(--main);color:var(--main);}
+.type-btn.active-escape{background:#cc44ff18;border-color:var(--escape);color:var(--escape);}
+.type-btn.active-alt{background:#00ff8818;border-color:var(--alt);color:var(--alt);}
+.delete-btn{width:100%;margin-top:7px;padding:4px;background:transparent;border:1px solid #e0c8c8;border-radius:5px;color:#aa6666;font-size:.7rem;cursor:pointer;transition:all .15s;}
+.delete-btn:hover{background:#fdf0f0;border-color:#e08080;color:#cc2020;}
+
+/* ── MAIN ── */
+main{display:flex;flex-direction:column;min-height:0;overflow:hidden;}
+#profiles-wrap{flex:1;overflow-y:auto;padding:16px;min-height:300px;}
+.profile-body{position:relative;padding:12px 12px 6px;min-height:180px;}
+/* Inline label editor */
+.rb-editor{position:absolute;font-family:'Segoe UI',system-ui,sans-serif;}
+
+/* ── MAP ── */
+#map-wrap{position:relative;height:420px;border-bottom:1px solid var(--border);display:none;}
+#map{height:100%;background:#e8edf2;}
+.leaflet-tile{filter:none;}
+.leaflet-container{background:#e8edf2;}
+.leaflet-control-zoom a{background:#fff!important;color:var(--accent)!important;border-color:var(--border)!important;}
+.leaflet-control-attribution{background:#ffffffcc!important;color:#667!important;font-size:9px!important;}
+.leaflet-popup-content-wrapper{background:#fffff8f0!important;border:1px solid var(--border)!important;border-radius:8px!important;box-shadow:0 4px 20px #0002!important;}
+.leaflet-popup-tip{background:#fffff8f0!important;}
+.leaflet-popup-content{color:var(--text)!important;font-size:.8rem!important;line-height:1.6!important;margin:10px 14px!important;}
+.popup-name{font-weight:700;color:var(--accent);font-size:.88rem;}
+.popup-type{font-size:.68rem;border-radius:3px;padding:1px 6px;display:inline-block;margin-bottom:4px;}
+.popup-type.main{background:#ff335520;color:var(--main);}
+.popup-type.escape{background:#cc44ff20;color:var(--escape);}
+.popup-type.alt{background:#00ff8820;color:var(--alt);}
+.popup-row{color:#5a6a80;}
+.popup-row span{color:var(--text);}
+.map-cursor-dot{width:14px;height:14px;border-radius:50%;background:var(--accent);border:2px solid #fff;box-shadow:0 0 8px #1a6adf66;margin:-7px 0 0 -7px;}
+
+/* ── PROFILES ── */
+.profile-section{background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:16px;overflow:hidden;}
+.profile-head{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
+.profile-swatch{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.profile-title{font-size:.8rem;font-weight:600;flex:1;}
+.profile-type-badge{font-size:.65rem;padding:2px 8px;border-radius:4px;letter-spacing:.05em;}
+.profile-tooltip{position:absolute;background:#fffffff4;border:1px solid var(--border);border-radius:7px;padding:8px 12px;font-size:.76rem;pointer-events:none;display:none;z-index:10;line-height:1.6;max-width:230px;box-shadow:0 2px 12px #0001;}
+.profile-tooltip .tt-name{font-weight:700;color:var(--accent);font-size:.82rem;}
+.profile-tooltip .tt-row{color:#5a6a80;}
+.profile-tooltip .tt-row span{color:var(--text);}
+.export-btn{padding:4px 10px;background:#eef2f8;border:1px solid var(--border);border-radius:5px;color:var(--accent);font-size:.7rem;cursor:pointer;}
+.export-btn:hover{background:#dde4f0;}
+
+/* no-data */
+#empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:24px;}
+#empty-anim{width:60%;max-width:480px;position:relative;opacity:.5;}
+/* Left/right fade overlay */
+#anim-svg-wrap{position:relative;width:100%;}
+#anim-svg{width:100%;height:auto;display:block;}
+#anim-fade-l,#anim-fade-r{position:absolute;top:0;bottom:0;width:60px;pointer-events:none;z-index:2;}
+#anim-fade-l{left:0;background:linear-gradient(to right,var(--bg) 0%,transparent 100%);}
+#anim-fade-r{right:0;background:linear-gradient(to left,var(--bg) 0%,transparent 100%);}
+#empty-msg{text-align:center;margin-top:14px;color:var(--muted);font-size:.82rem;letter-spacing:.02em;opacity:1;}
+#empty-add-btn{display:block;margin:12px auto 0;padding:8px 20px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-size:.82rem;cursor:pointer;letter-spacing:.03em;transition:opacity .15s;}
+#empty-add-btn:hover{opacity:.85;}
+
+/* DnD insertion indicator */
+.track-item.dragging,.profile-section.dragging{opacity:.35;}
+.track-item.drag-over-top,.profile-section.drag-over-top{
+  box-shadow:0 -3px 0 0 var(--accent), 0 0 10px var(--accent)44;
+}
+.track-item.drag-over-bottom,.profile-section.drag-over-bottom{
+  box-shadow:0 3px 0 0 var(--accent), 0 0 10px var(--accent)44;
+}
+
+/* Custom language dropdown */
+#lang-dropdown{position:relative;display:inline-block;}
+#lang-current{display:flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid var(--border);border-radius:5px;background:#eef2f8;color:var(--text);font-size:.78rem;cursor:pointer;user-select:none;min-width:110px;}
+#lang-current:hover{border-color:var(--accent);}
+#lang-current img{width:18px;height:12px;object-fit:cover;border-radius:2px;flex-shrink:0;}
+#lang-current .lang-caret{margin-left:auto;font-size:.6rem;color:var(--muted);}
+#lang-menu{position:absolute;top:calc(100% + 4px);right:0;background:#fff;border:1px solid var(--border);border-radius:7px;box-shadow:0 4px 16px #0002;z-index:9999;min-width:130px;overflow:hidden;display:none;}
+#lang-menu.open{display:block;}
+.lang-opt{display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;font-size:.78rem;color:var(--text);transition:background .1s;}
+.lang-opt:hover{background:#eef4ff;}
+.lang-opt.active{background:#f0f6ff;font-weight:600;}
+.lang-opt img{width:18px;height:12px;object-fit:cover;border-radius:2px;flex-shrink:0;}
+
+/* scrollbar */
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:#c8d0dc;border-radius:2px;}
+
+/* LEGEND */
+.map-legend{position:absolute;bottom:12px;left:12px;z-index:1000;background:#ffffffee;border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:.7rem;line-height:2;}
+.leg-row{display:flex;align-items:center;gap:7px;color:#4a5870;}
+.leg-line{width:20px;height:3px;border-radius:2px;}
+.leg-dot{width:9px;height:9px;border-radius:50%;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Elevate</h1>
+  <span class="badge">Génération de profils d'élévation</span>
+  <div id="header-controls" style="display:flex;align-items:center;gap:14px;margin-left:auto;">
+    <!-- Map toggle switch -->
+    <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:.75rem;color:var(--muted);user-select:none;">
+      <span id="map-toggle-label">Carte</span>
+      <span id="map-switch" style="
+        position:relative;display:inline-block;width:36px;height:20px;
+        background:#c8d0dc;border-radius:10px;transition:background .2s;flex-shrink:0;">
+        <span id="map-switch-knob" style="
+          position:absolute;top:3px;left:3px;width:14px;height:14px;
+          background:#fff;border-radius:50%;transition:left .2s;
+          box-shadow:0 1px 3px #0003;">
+        </span>
+      </span>
+    </label>
+    <div id="lang-dropdown">
+      <div id="lang-current">
+        <img id="lang-flag" src="" alt=""/>
+        <span id="lang-name">Français</span>
+        <span class="lang-caret">▼</span>
+      </div>
+      <div id="lang-menu">
+        <div class="lang-opt" data-lang="fr"><img src="https://flagcdn.com/w20/fr.png" alt="FR"/> Français</div>
+        <div class="lang-opt" data-lang="ca"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAPoAAACnCAMAAAAPIrEmAAAAIVBMVEX83QnaEhrrexL71grtgxH5zgruihD4xwvvkxD2vwz96FrmnCimAAAAsElEQVR4nO3YOREDQBDEwPX/8Afs9Bisq9SNYJTODAAAAAB/4Jo1lyzpRdKLpBdJL5JeJL1IepH0onL6LWv7GgQAAAA43bPK39z2gD3Si6QXSS+SXiS9SHqR9CLpRfPI2r4GAQAAAE7PrPI3tz1gj/Qi6UXSi6QXSS+SXiS9SHrRvLK2r0EAAACA0zur/M1tD9gjvUh6kfQi6UXSi6QXSS+SXjSfrO1rEAAAAOD0zfoBsWN7DbhlvD4AAAAASUVORK5CYII=" alt="CA"/> Català</div>
+        <div class="lang-opt" data-lang="es"><img src="https://flagcdn.com/w20/es.png" alt="ES"/> Español</div>
+        <div class="lang-opt" data-lang="en"><img src="https://flagcdn.com/w20/gb.png" alt="EN"/> English</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside>
+    <div class="sidebar-head"><span>Itinéraires</span></div>
+
+    <div id="drop-zone">
+      <p>Glissez un ou plusieurs fichiers <strong>.gpx</strong> ici</p>
+      <label id="file-btn" for="file-input">Ajouter des GPX</label>
+      <input type="file" id="file-input" accept=".gpx" multiple>
+    </div>
+
+    <div id="track-list"></div>
+  </aside>
+
+  <!-- MAIN -->
+  <main>
+    <div id="map-wrap">
+      <div id="map"></div>
+      <div class="map-legend">
+        <div class="leg-row"><div class="leg-line" style="background:var(--main)"></div> Principal</div>
+        <div class="leg-row"><div class="leg-line" style="background:var(--escape)"></div> Escape</div>
+        <div class="leg-row"><div class="leg-line" style="background:var(--alt)"></div> Alternative</div>
+        <div class="leg-row"><div class="leg-dot" style="background:var(--escape)"></div> Jonction escape</div>
+        <div class="leg-row"><div class="leg-dot" style="background:var(--alt)"></div> Jonction alternative</div>
+      </div>
+    </div>
+
+    <div id="profiles-wrap">
+      <div id="empty-state">
+        <!-- Animated graph (faded) -->
+        <div id="empty-anim">
+          <div id="anim-svg-wrap">
+            <svg id="anim-svg" viewBox="0 0 600 220" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="eg" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#1a6adf" stop-opacity="0.55"/>
+                  <stop offset="100%" stop-color="#1a6adf" stop-opacity="0.04"/>
+                </linearGradient>
+                <clipPath id="reveal-clip">
+                  <rect id="clip-rect" x="0" y="0" width="0" height="220"/>
+                </clipPath>
+              </defs>
+              <!-- Area fill -->
+              <path clip-path="url(#reveal-clip)"
+                fill="url(#eg)" stroke="none"
+                d="M0,215 L0,155 C40,155 60,95 100,90 C140,85 160,125 200,115 C240,105 260,58 300,52 C340,46 360,82 400,78 C440,74 460,112 500,108 C540,104 570,130 600,128 L600,215 Z"/>
+              <!-- Line -->
+              <path clip-path="url(#reveal-clip)"
+                fill="none" stroke="#1a6adf" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"
+                d="M0,155 C40,155 60,95 100,90 C140,85 160,125 200,115 C240,105 260,58 300,52 C340,46 360,82 400,78 C440,74 460,112 500,108 C540,104 570,130 600,128"/>
+              <!-- Roadbook dots -->
+              <g class="rb-pt" style="opacity:0">
+                <line x1="100" y1="90" x2="100" y2="215" stroke="#e8203a" stroke-width="1" stroke-dasharray="3 3" opacity="0.35"/>
+                <circle cx="100" cy="90" r="4.5" fill="#e8203a" stroke="#fff" stroke-width="1.5"/>
+                <text x="100" y="64" text-anchor="middle" font-size="9.5" font-weight="700" fill="#1a2030">Col</text>
+                <text x="100" y="76" text-anchor="middle" font-size="8.5" fill="#8a96a8">1842 m</text>
+              </g>
+              <g class="rb-pt" style="opacity:0">
+                <line x1="300" y1="52" x2="300" y2="215" stroke="#e8203a" stroke-width="1" stroke-dasharray="3 3" opacity="0.35"/>
+                <circle cx="300" cy="52" r="4.5" fill="#e8203a" stroke="#fff" stroke-width="1.5"/>
+                <text x="300" y="26" text-anchor="middle" font-size="9.5" font-weight="700" fill="#1a2030">Sommet</text>
+                <text x="300" y="38" text-anchor="middle" font-size="8.5" fill="#8a96a8">2364 m</text>
+              </g>
+              <g class="rb-pt" style="opacity:0">
+                <line x1="500" y1="108" x2="500" y2="215" stroke="#e8203a" stroke-width="1" stroke-dasharray="3 3" opacity="0.35"/>
+                <circle cx="500" cy="108" r="4.5" fill="#e8203a" stroke="#fff" stroke-width="1.5"/>
+                <text x="500" y="82" text-anchor="middle" font-size="9.5" font-weight="700" fill="#1a2030">Refuge</text>
+                <text x="500" y="94" text-anchor="middle" font-size="8.5" fill="#8a96a8">1680 m</text>
+              </g>
+              <!-- X axis removed -->
+            </svg>
+            <div id="anim-fade-l"></div>
+            <div id="anim-fade-r"></div>
+          </div>
+        </div>
+        <!-- Text + button — full opacity, outside the faded container -->
+        <div id="empty-msg"><span id="empty-state-text"></span></div>
+        <button id="empty-add-btn">＋ Ajouter des GPX</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════════
+// CONSTANTS & STATE
+// ════════════════════════════════════════════════════════════════
+const TYPE_COLORS = { main:'#ff3355', escape:'#cc44ff', alt:'#00ff88' };
+const TYPE_LABELS = { main:'Principal', escape:'Escape', alt:'Alternative' }; // updated by setLang
+const JUNCTION_RADIUS = 0.08;
+
+// ════════════════════════════════════════════════════════════════
+// INTERNATIONALISATION
+// ════════════════════════════════════════════════════════════════
+const LANGS = {
+  fr: {
+    title:"Roadbook Multi-GPX", badge:"Génération de profils d’élévation", mapLabel:"Carte",
+    itineraires:"Itinéraires", addGpx:"Ajouter des GPX", dropText:"Glissez un ou plusieurs fichiers",
+    principal:"Principal", escape:"Escape", alternative:"Alternative",
+    delete:"Supprimer", distance:"Distance", ascent:"Dénivelé +", descent:"Dénivelé −",
+    rbPoints:"pts roadbook", exportPng:"⬇ PNG",
+    departure:"Départ", arrival:"Arrivée", junction:"Jonction",
+    track:"Trace", altitude:"Alt.", dist:"Dist.",
+    secType_escape:"escape", secType_alt:"alternatif",
+    position:"Position", troncon:"Tronçon", deltaKm:"Δ km",
+    importMsg:"Importez des fichiers GPX pour afficher la carte et les profils",
+    errorIn:"Erreur dans",
+    legendMain:"Principal", legendEscape:"Escape", legendAlt:"Alternative",
+    legendJuncEscape:"Jonction escape", legendJuncAlt:"Jonction alternative",
+    junctionTooltip:"Jonction", posLabel:"Position",
+  },
+  ca: {
+    title:"Roadbook Multi-GPX", badge:"Generació de perfils d’elevació", mapLabel:"Mapa",
+    itineraires:"Itineraris", addGpx:"Afegir GPX", dropText:"Arrossegueu un o diversos fitxers",
+    principal:"Principal", escape:"Escapada", alternative:"Alternativa",
+    delete:"Eliminar", distance:"Distància", ascent:"Desnivell +", descent:"Desnivell −",
+    rbPoints:"pts roadbook", exportPng:"⬇ PNG",
+    departure:"Sortida", arrival:"Arribada", junction:"Cruïlla",
+    track:"Traçat", altitude:"Alt.", dist:"Dist.",
+    secType_escape:"escapada", secType_alt:"alternatiu",
+    position:"Posició", troncon:"Tram", deltaKm:"Δ km",
+    importMsg:"Importeu fitxers GPX per mostrar el mapa i els perfils",
+    errorIn:"Error a",
+    legendMain:"Principal", legendEscape:"Escapada", legendAlt:"Alternativa",
+    legendJuncEscape:"Cruïlla escapada", legendJuncAlt:"Cruïlla alternativa",
+    junctionTooltip:"Cruïlla", posLabel:"Posició",
+  },
+  es: {
+    title:"Roadbook Multi-GPX", badge:"Generación de perfiles de altitud", mapLabel:"Mapa",
+    itineraires:"Itinerarios", addGpx:"Añadir GPX", dropText:"Arrastre uno o varios archivos",
+    principal:"Principal", escape:"Escape", alternative:"Alternativa",
+    delete:"Eliminar", distance:"Distancia", ascent:"Desnivel +", descent:"Desnivel −",
+    rbPoints:"pts roadbook", exportPng:"⬇ PNG",
+    departure:"Salida", arrival:"Llegada", junction:"Enlace",
+    track:"Traza", altitude:"Alt.", dist:"Dist.",
+    secType_escape:"escape", secType_alt:"alternativo",
+    position:"Posición", troncon:"Tramo", deltaKm:"Δ km",
+    importMsg:"Importa archivos GPX para mostrar el mapa y los perfiles",
+    errorIn:"Error en",
+    legendMain:"Principal", legendEscape:"Escape", legendAlt:"Alternativa",
+    legendJuncEscape:"Enlace escape", legendJuncAlt:"Enlace alternativa",
+    junctionTooltip:"Enlace", posLabel:"Posición",
+  },
+  en: {
+    title:"Roadbook Multi-GPX", badge:"Elevation profile generator", mapLabel:"Map",
+    itineraires:"Routes", addGpx:"Add GPX", dropText:"Drop one or more files",
+    principal:"Main", escape:"Escape", alternative:"Alternative",
+    delete:"Delete", distance:"Distance", ascent:"Ascent", descent:"Descent",
+    rbPoints:"roadbook pts", exportPng:"⬇ PNG",
+    departure:"Start", arrival:"Finish", junction:"Junction",
+    track:"Track", altitude:"Alt.", dist:"Dist.",
+    secType_escape:"escape", secType_alt:"alternative",
+    position:"Position", troncon:"Segment", deltaKm:"Δ km",
+    importMsg:"Import GPX files to display the map and profiles",
+    errorIn:"Error in",
+    legendMain:"Main", legendEscape:"Escape", legendAlt:"Alternative",
+    legendJuncEscape:"Escape junction", legendJuncAlt:"Alternative junction",
+    junctionTooltip:"Junction", posLabel:"Position",
+  },
+}
+
+let _lang = 'fr';
+let T = LANGS[_lang];
+
+function setLang(l){
+  _lang = l;
+  T = LANGS[l];
+  applyLang();
+}
+
+function applyLang(){
+  document.documentElement.lang = _lang;
+  // lang-select replaced by custom dropdown
+  document.title = 'Elevate';
+  document.querySelector('header h1').textContent = 'Elevate';
+  document.querySelector('header .badge').textContent = T.badge;
+  const mapLbl = document.getElementById('map-toggle-label');
+  if(mapLbl) mapLbl.textContent = T.mapLabel || 'Carte';
+  document.querySelector('.sidebar-head span').textContent = T.itineraires;
+  document.querySelector('#drop-zone p').innerHTML = T.dropText+' <strong>.gpx</strong>';
+  document.querySelector('#file-btn').textContent = T.addGpx;
+  const es = document.getElementById('empty-state-text');
+  if(es) es.textContent = T.importMsg;
+  const addBtn = document.getElementById('empty-add-btn');
+  if(addBtn) addBtn.textContent = '＋ ' + T.addGpx;
+  // Legend
+  const legRows = document.querySelectorAll('.map-legend .leg-row');
+  if(legRows.length>=5){
+    legRows[0].childNodes[1].textContent = ' '+T.legendMain;
+    legRows[1].childNodes[1].textContent = ' '+T.legendEscape;
+    legRows[2].childNodes[1].textContent = ' '+T.legendAlt;
+    legRows[3].childNodes[1].textContent = ' '+T.legendJuncEscape;
+    legRows[4].childNodes[1].textContent = ' '+T.legendJuncAlt;
+  }
+  // Type buttons on all track items
+  document.querySelectorAll('.type-btn[data-type="main"]').forEach(b=>b.textContent=T.principal);
+  document.querySelectorAll('.type-btn[data-type="escape"]').forEach(b=>b.textContent=T.escape);
+  document.querySelectorAll('.type-btn[data-type="alt"]').forEach(b=>b.textContent=T.alternative);
+  document.querySelectorAll('.delete-btn').forEach(b=>b.textContent=T.delete);
+  document.querySelectorAll('.export-btn').forEach(b=>b.textContent=T.exportPng);
+  // TYPE_LABELS used for badges and popups
+  TYPE_LABELS.main = T.principal;
+  TYPE_LABELS.escape = T.escape;
+  TYPE_LABELS.alt = T.alternative;
+  // Redraw all charts to pick up new labels
+  _tracks.forEach(t=>{ if(t.chartEl&&t.visible) drawChart(t,t.chartEl); });
+  if(_tracks.length) setTimeout(redrawMainJunctionDots,50);
+}
+ // km — distance to consider a common point
+
+const SYM_ICONS = {
+  'turn-left':'↰','turn-right':'↱','turn-sharp-left':'⬅','turn-sharp-right':'➡',
+  'turn-slight-left':'↖','turn-slight-right':'↗','u-turn':'↩','straight':'⬆',
+  'roundabout':'🔄','fork-left':'↖','fork-right':'↗','waypoint':'📍','flag':'🚩',
+  'home':'🏠','car':'🚗','bike':'🚴','hiker':'🚶','camping':'⛺','summit':'⛰',
+  'peak':'🏔','water':'💧','food':'🍽','restaurant':'🍽','gas':'⛽','fuel':'⛽',
+  'parking':'🅿','hotel':'🏨','danger':'⚠','warning':'⚠','caution':'⚠',
+  'church':'⛪','castle':'🏰','monument':'🗿','viewpoint':'👁','photo':'📷',
+  'start':'🟢','finish':'🏁','end':'🏁','arrival':'🏁','departure':'🟢',
+  'info':'ℹ','bridge':'🌉','tunnel':'🚇','pass':'🏔','col':'🏔',
+  'geocache':'🎯','bike trail':'🚴','hiking trail':'🥾','trail head':'🥾',
+  'scenic area':'🌄','museum':'🏛','medical facility':'🏥',
+  'gas station':'⛽','airport':'✈','train station':'🚉',
+};
+function symToIcon(s){if(!s)return'📍';const k=s.toLowerCase().trim();if(SYM_ICONS[k])return SYM_ICONS[k];for(const[e,v]of Object.entries(SYM_ICONS))if(k.includes(e)||e.includes(k))return v;return'📍';}
+
+let _tracks   = [];   // [{id,name,type,visible,points,roadbookPts,stats,color, mapLayer,markerLayer,junctionLayer, chartEl}]
+let _map      = null;
+let _cursorMarker = null;
+let _idCounter = 0;
+
+// ════════════════════════════════════════════════════════════════
+// INIT MAP
+// ════════════════════════════════════════════════════════════════
+function initMap(){
+  if(_map) return;
+  _map = L.map('map',{zoomControl:true});
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'© <a href="https://www.openstreetmap.org/copyright">OSM</a>',maxZoom:19
+  }).addTo(_map);
+  _map.setView([46.5,2.5],5);
+
+  const ci = L.divIcon({className:'map-cursor-dot',iconSize:[14,14],iconAnchor:[7,7]});
+  _cursorMarker = L.marker([0,0],{icon:ci,interactive:false,zIndexOffset:2000}).addTo(_map);
+  _cursorMarker.setOpacity(0);
+}
+
+// ════════════════════════════════════════════════════════════════
+// PARSE GPX
+// ════════════════════════════════════════════════════════════════
+function parseGPX(text, filename){
+  const doc = new DOMParser().parseFromString(text,'application/xml');
+  const trackName = doc.querySelector('trk > name')?.textContent?.trim() || filename.replace(/\.gpx$/i,'');
+  const trkpts = [...doc.querySelectorAll('trkpt')];
+  if(!trkpts.length) throw new Error('Aucun trkpt trouvé');
+
+  let cum=0;
+  const points = trkpts.map((pt,i)=>{
+    const lat=parseFloat(pt.getAttribute('lat')), lon=parseFloat(pt.getAttribute('lon'));
+    const ele=parseFloat(pt.querySelector('ele')?.textContent||0);
+    if(i>0){const p=trkpts[i-1];cum+=hav(parseFloat(p.getAttribute('lat')),parseFloat(p.getAttribute('lon')),lat,lon);}
+    const name=pt.querySelector('name')?.textContent?.trim()||pt.querySelector('cmt')?.textContent?.trim()||'';
+    const sym=pt.querySelector('sym')?.textContent?.trim()||'';
+    const desc=pt.querySelector('desc')?.textContent?.trim()||'';
+    return{lat,lon,ele,dist:cum,name,sym,desc,isRB:!!(name||sym),icon:symToIcon(sym)};
+  });
+
+  // Waypoints → nearest track point
+  [...doc.querySelectorAll('wpt')].forEach(wpt=>{
+    const lat=parseFloat(wpt.getAttribute('lat')),lon=parseFloat(wpt.getAttribute('lon'));
+    const name=wpt.querySelector('name')?.textContent?.trim()||'';
+    const sym=wpt.querySelector('sym')?.textContent?.trim()||'';
+    const desc=wpt.querySelector('desc')?.textContent?.trim()||'';
+    if(!name) return;
+    let minD=Infinity,ni=0;
+    points.forEach((p,i)=>{const d=hav(lat,lon,p.lat,p.lon);if(d<minD){minD=d;ni=i;}});
+    if(minD<0.5&&!points[ni].name){points[ni].name=name;points[ni].sym=sym;points[ni].desc=desc;points[ni].icon=symToIcon(sym);points[ni].isRB=true;}
+  });
+
+  const roadbookPts=points.filter(p=>p.isRB&&p.name);
+  let asc=0,desc2=0;
+  for(let i=1;i<points.length;i++){const d=points[i].ele-points[i-1].ele;if(d>0)asc+=d;else desc2+=Math.abs(d);}
+  return{
+    trackName, points, roadbookPts,
+    ascent:asc, descent:desc2,
+    eleMin:d3.min(points,p=>p.ele), eleMax:d3.max(points,p=>p.ele),
+    totalDist:points[points.length-1].dist
+  };
+}
+function hav(la1,lo1,la2,lo2){
+  const R=6371,dLa=(la2-la1)*Math.PI/180,dLo=(lo2-lo1)*Math.PI/180;
+  const a=Math.sin(dLa/2)**2+Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dLo/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+// ════════════════════════════════════════════════════════════════
+// JUNCTION DETECTION — points on main that are close to escape/alt
+// ════════════════════════════════════════════════════════════════
+function computeJunctions(){
+  const main = _tracks.find(t=>t.type==='main');
+  if(!main) return;
+
+  // Clear old junction layers on main
+  if(main.junctionLayer){main.junctionLayer.clearLayers();}
+  else{main.junctionLayer=L.layerGroup().addTo(_map);}
+
+  // For each non-main track, find closest points on main
+  _tracks.filter(t=>t.type!=='main'&&t.visible).forEach(sec=>{
+    const color = TYPE_COLORS[sec.type];
+    const jLayer = main.junctionLayer;
+
+    // Build spatial index: for each point of secondary, find closest on main
+    const seenMain = new Set();
+    sec.points.forEach(sp=>{
+      let best=Infinity, bi=-1;
+      main.points.forEach((mp,mi)=>{
+        const d=hav(sp.lat,sp.lon,mp.lat,mp.lon);
+        if(d<best){best=d;bi=mi;}
+      });
+      if(best<JUNCTION_RADIUS && !seenMain.has(bi)){
+        seenMain.add(bi);
+        const mp=main.points[bi];
+        L.circleMarker([mp.lat,mp.lon],{radius:5,fillColor:color,color:'#0c0f14',weight:1.5,fillOpacity:1})
+          .bindPopup(`<div class="popup-name">${T.junctionTooltip} ${TYPE_LABELS[sec.type]}</div>
+            <div class="popup-row">${T.track} : <span>${sec.name}</span></div>
+            <div class="popup-row">${T.altitude} : <span>${Math.round(mp.ele)} m</span></div>
+            <div class="popup-row">${T.dist} : <span>${mp.dist.toFixed(2)} km</span></div>`)
+          .addTo(jLayer);
+      }
+    });
+  });
+
+  // Mark junction points on main's chart
+  redrawMainJunctionDots();
+}
+
+// ════════════════════════════════════════════════════════════════
+// DRAW ON MAP
+// ════════════════════════════════════════════════════════════════
+function drawTrackOnMap(t){
+  if(t.mapLayer){t.mapLayer.remove();t.markerLayer.remove();}
+
+  const latlngs = t.points.map(p=>[p.lat,p.lon]);
+  const weight = t.type==='main'?3.5:2.5;
+  t.mapLayer = L.polyline(latlngs,{color:t.color,weight,opacity:.92}).addTo(_map);
+
+  t.markerLayer = L.layerGroup().addTo(_map);
+
+  // Start/end
+  const s=t.points[0],e=t.points[t.points.length-1];
+  L.circleMarker([s.lat,s.lon],{radius:6,fillColor:'#22cc66',color:'#fff',weight:2,fillOpacity:1})
+    .bindTooltip(T.departure,{direction:'top'}).addTo(t.markerLayer);
+  L.circleMarker([e.lat,e.lon],{radius:6,fillColor:'#ff4060',color:'#fff',weight:2,fillOpacity:1})
+    .bindTooltip(T.arrival,{direction:'top'}).addTo(t.markerLayer);
+
+  // Roadbook markers
+  const typeBadge=`<span class="popup-type ${t.type}">${TYPE_LABELS[t.type]}</span>`;
+  t.roadbookPts.forEach(pt=>{
+    const ic=L.divIcon({className:'',html:`<div style="font-size:17px;line-height:1;filter:drop-shadow(0 1px 3px #000a)">${pt.icon}</div>`,iconSize:[24,24],iconAnchor:[12,12]});
+    L.marker([pt.lat,pt.lon],{icon:ic})
+      .bindPopup(`${typeBadge}<div class="popup-name">${pt.icon} ${pt.name}</div>
+        ${pt.sym?`<div style="font-size:.7rem;color:#cc44ff">🏷 ${pt.sym}</div>`:''}
+        <div class="popup-row">Distance : <span>${pt.dist.toFixed(2)} km</span></div>
+        <div class="popup-row">Altitude : <span>${Math.round(pt.ele)} m</span></div>
+        ${pt.desc?`<div class="popup-row" style="color:#aab;font-size:.74rem">${pt.desc}</div>`:''}`)
+      .addTo(t.markerLayer);
+  });
+}
+
+function setTrackVisibility(t,visible){
+  t.visible=visible;
+  if(visible){t.mapLayer&&_map.addLayer(t.mapLayer);t.markerLayer&&_map.addLayer(t.markerLayer);}
+  else{t.mapLayer&&_map.removeLayer(t.mapLayer);t.markerLayer&&_map.removeLayer(t.markerLayer);}
+  computeJunctions();
+}
+
+function fitAllTracks(){
+  const all=_tracks.filter(t=>t.mapLayer);
+  if(!all.length)return;
+  const group=L.featureGroup(all.map(t=>t.mapLayer));
+  _map.fitBounds(group.getBounds(),{padding:[24,24]});
+}
+
+// ════════════════════════════════════════════════════════════════
+// ELEVATION CHART
+// ════════════════════════════════════════════════════════════════
+function wrapText(txt,max){
+  if(!txt)return[];
+  const words=txt.split(/\s+/),lines=[];let cur='';
+  for(const w of words){
+    if((cur+(cur?' ':'')+w).length<=max){cur+=(cur?' ':'')+w;}
+    else{if(cur)lines.push(cur);if(w.length>max){let r=w;while(r.length>max){lines.push(r.slice(0,max));r=r.slice(max);}cur=r;}else cur=w;}
+  }
+  if(cur)lines.push(cur);
+  return lines;
+}
+
+function drawChart(t, container){
+  const points      = t.points;
+  const roadbookPts = t.roadbookPts;
+  const eleMin      = t.stats.eleMin;
+  const eleMax      = t.stats.eleMax;
+  const totalDist   = t.stats.totalDist;
+  const wrap     = container.querySelector('.profile-body');
+  const svgEl    = container.querySelector('svg.pchart');
+  const tooltipEl= container.querySelector('.profile-tooltip');
+
+  const W = Math.max(wrap.getBoundingClientRect().width || wrap.offsetWidth || 600, 200) - 8;
+
+  // ── Label constants ────────────────────────────────────────────
+  const CHAR_W  = 6.0;
+  const FONT_SZ = 10;
+  const LINE_H  = 12;
+  const PAD_X   = 6;
+  const PAD_Y   = 4;
+  const MAX_C   = 13;
+  const MARGIN  = { left:52, right:16, bottom:34 };
+  const iW      = W - MARGIN.left - MARGIN.right;
+
+  // ── Pre-compute pill sizes ─────────────────────────────────────
+  const xScTmp = d3.scaleLinear().domain([0, totalDist]).range([0, iW]);
+  const pillInfos = roadbookPts.map(pt => {
+    // Strip trailing altitude pattern e.g. "Col du Lautaret 2058m" → "Col du Lautaret"
+    const cleanName = (pt.name || '').replace(/\s*[\d\s.,]+\s*m\s*$/i, '').trim();
+    const lines = wrapText(cleanName, MAX_C);
+    const nL    = Math.min(lines.length, 3);
+    const pillW = Math.max(...lines.slice(0,nL).map(l => l.length)) * CHAR_W + PAD_X*2;
+    const pillH = nL * LINE_H + LINE_H + PAD_Y*2;  // +1 row for altitude
+    const cx    = xScTmp(pt.dist);
+    const pillX = Math.min(Math.max(cx - pillW/2, 0), iW - pillW);
+    return { pt, cleanName, lines, nL, pillW, pillH, cx, pillX };
+  });
+
+  // ── Placement: closest to curve first, push UP on collision ────
+  // We don't know LABEL_ZONE_H yet, so we compute it after placement.
+  // Labels start at labelY=0 meaning "touching the separator".
+  // Ideal position = bottom of label zone (as low as possible = closest to curve).
+  // We'll place in two passes:
+  //   Pass A: find each label's ideal bottom (= 0, i.e. as close as possible)
+  //           then push up until collision-free.
+  //   The label zone height = tallest stack needed.
+  const placed = [];
+  function noCollide(x1,y1,x2,y2){
+    return !placed.some(p => x1<p.x2+2 && x2>p.x1-2 && y1<p.y2+2 && y2>p.y1-2);
+  }
+
+  // Sort by x so we process left→right (deterministic)
+  [...pillInfos].sort((a,b)=>a.cx-b.cx).forEach(inf => {
+    const bx1 = inf.pillX, bx2 = inf.pillX + inf.pillW;
+    // Ideal: labelY = 0 (bottom of label zone, closest to curve)
+    // Step upward by (pillH+3) until free
+    let bestY = 0;
+    for(let step=0; step<60; step++){
+      const tryY = step * (inf.pillH + 3);
+      if(noCollide(bx1, tryY, bx2, tryY + inf.pillH)){ bestY = tryY; break; }
+      if(step === 59) bestY = tryY;
+    }
+    inf.labelY = bestY;
+    placed.push({x1:bx1, y1:bestY, x2:bx2, y2:bestY + inf.pillH});
+  });
+
+  // ── Compute heights ────────────────────────────────────────────
+  const LABEL_ZONE_H = placed.length ? Math.max(...placed.map(p=>p.y2)) + 10 : 4;
+  const CURVE_H      = Math.min(160, Math.max(110, W * 0.18));
+  const margin_top   = LABEL_ZONE_H + 6;
+  const H            = margin_top + CURVE_H + MARGIN.bottom;
+  const iH           = CURVE_H;
+
+  // ── Build SVG ──────────────────────────────────────────────────
+  const svg = d3.select(svgEl).attr('width',W).attr('height',H);
+  svg.selectAll('*').remove();
+
+  const uid  = 'g'+t.id;
+  const defs = svg.append('defs');
+  const grad = defs.append('linearGradient').attr('id','ag'+uid)
+    .attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',1);
+  grad.append('stop').attr('offset','0%').attr('stop-color',t.color).attr('stop-opacity',.45);
+  grad.append('stop').attr('offset','100%').attr('stop-color',t.color).attr('stop-opacity',.03);
+  defs.append('clipPath').attr('id','cp'+uid)
+    .append('rect').attr('width',iW).attr('height',iH);
+
+  // Separator line between label zone and curve zone
+  svg.append('line')
+    .attr('x1', MARGIN.left).attr('y1', margin_top)
+    .attr('x2', W - MARGIN.right).attr('y2', margin_top)
+    .attr('stroke','#1e2a3a').attr('stroke-width',1);
+
+  // ── Curve group (origin = curve top-left) ─────────────────────
+  const g = svg.append('g').attr('transform',`translate(${MARGIN.left},${margin_top})`);
+
+  const xSc = d3.scaleLinear().domain([0, totalDist]).range([0, iW]);
+  const pad  = (eleMax-eleMin)*.10 || 10;
+  const ySc  = d3.scaleLinear().domain([eleMin-pad, eleMax+pad]).range([iH, 0]);
+
+  t._xSc=xSc; t._ySc=ySc; t._chartG=g; t._iH=iH; t._uid=uid;
+
+  // Grid
+  g.append('g').call(d3.axisLeft(ySc).ticks(4).tickSize(-iW).tickFormat(''))
+    .selectAll('line,path').style('stroke','#e0e6f0').style('stroke-dasharray','3 3');
+  g.append('g').attr('transform',`translate(0,${iH})`)
+    .call(d3.axisBottom(xSc).ticks(5).tickSize(-iH).tickFormat(''))
+    .selectAll('line,path').style('stroke','#e0e6f0').style('stroke-dasharray','3 3');
+
+  // Y axis — altitude values always shown
+  const yAx = g.append('g').call(
+    d3.axisLeft(ySc).ticks(5).tickFormat(d => Math.round(d)+'m')
+  );
+  yAx.selectAll('text').style('fill','#7a8a9a').style('font-size','10px');
+  yAx.selectAll('.domain,.tick line').style('stroke','#c8d4e0');
+
+  // X axis
+  const xAx = g.append('g').attr('transform',`translate(0,${iH})`).call(
+    d3.axisBottom(xSc).ticks(5).tickFormat(d => d.toFixed(1)+'km')
+  );
+  xAx.selectAll('text').style('fill','#7a8a9a').style('font-size','10px');
+  xAx.selectAll('.domain,.tick line').style('stroke','#c8d4e0');
+
+  // Area fill + curve line
+  const area   = d3.area().x(d=>xSc(d.dist)).y0(iH).y1(d=>ySc(d.ele)).curve(d3.curveCatmullRom.alpha(.5));
+  const lineFn = d3.line().x(d=>xSc(d.dist)).y(d=>ySc(d.ele)).curve(d3.curveCatmullRom.alpha(.5));
+  g.append('path').datum(points).attr('d',area).attr('fill',`url(#ag${uid})`).attr('clip-path',`url(#cp${uid})`);
+  g.append('path').datum(points).attr('d',lineFn).attr('fill','none').attr('stroke',t.color).attr('stroke-width',2).attr('clip-path',`url(#cp${uid})`);
+
+  // ── Label group (absolute SVG coords from top) ─────────────────
+  const gLbl = svg.append('g').attr('transform',`translate(${MARGIN.left},0)`);
+
+  // Floating edit input (shared, appended to profile-body)
+  function openLabelEditor(pt, anchorX, anchorY, wrapEl, redrawFn){
+    // Remove any existing editor
+    wrapEl.querySelectorAll('.rb-editor').forEach(el=>el.remove());
+
+    const svgRect = wrapEl.querySelector('svg.pchart').getBoundingClientRect();
+    const wrapRect = wrapEl.getBoundingClientRect();
+
+    const inp = document.createElement('input');
+    inp.className = 'rb-editor';
+    inp.type = 'text';
+    inp.value = (pt._editName !== undefined ? pt._editName : (pt.name||'').replace(/\s*[\d\s.,]+\s*m\s*$/i,'').trim());
+    inp.style.cssText = `
+      position:absolute;
+      left:${anchorX - wrapRect.left - 60}px;
+      top:${anchorY - wrapRect.top - 14}px;
+      width:120px;
+      padding:3px 7px;
+      font-size:10px;
+      font-weight:700;
+      border:1px solid var(--accent);
+      border-radius:5px;
+      background:#fff;
+      color:#1a2030;
+      box-shadow:0 2px 10px #1a6adf22;
+      outline:none;
+      z-index:100;
+    `;
+    wrapEl.appendChild(inp);
+    inp.focus();
+    inp.select();
+
+    function confirm(){
+      const newName = inp.value.trim();
+      if(newName) pt._editName = newName;
+      inp.remove();
+      redrawFn();
+    }
+    function cancel(){ inp.remove(); }
+
+    inp.addEventListener('keydown',e=>{
+      if(e.key==='Enter'){ e.preventDefault(); confirm(); }
+      if(e.key==='Escape'){ e.preventDefault(); cancel(); }
+      e.stopPropagation();
+    });
+    inp.addEventListener('blur', confirm);
+    inp.addEventListener('click', e=>e.stopPropagation());
+  }
+
+  // ── Draw roadbook markers and labels ──────────────────────────
+  if(roadbookPts.length > 0){
+    pillInfos.forEach(inf => {
+      const { pt, lines, nL, pillW, pillH, pillX, labelY, cx } = inf;
+      // Use edited name if available
+      const displayName = pt._editName !== undefined ? pt._editName
+        : inf.cleanName;
+      const displayLines = wrapText(displayName, MAX_C).slice(0,nL);
+      const dotX = xSc(pt.dist);
+      const dotY = ySc(pt.ele);
+      const flippedY = LABEL_ZONE_H - labelY - pillH;
+
+      // Dashed tick column in curve zone
+      g.append('line')
+        .attr('x1',dotX).attr('y1',0).attr('x2',dotX).attr('y2',iH)
+        .attr('stroke',t.color+'18').attr('stroke-width',1).attr('stroke-dasharray','3 3');
+
+      // Connector from pill bottom to separator
+      gLbl.append('line')
+        .attr('x1',dotX).attr('y1',flippedY+pillH+2)
+        .attr('x2',dotX).attr('y2',LABEL_ZONE_H+6)
+        .attr('stroke',t.color+'44').attr('stroke-width',1).attr('stroke-dasharray','3 2');
+
+      // Dot on curve — colour by track type
+      g.append('circle').attr('cx',dotX).attr('cy',dotY).attr('r',5)
+        .attr('fill',t.color).attr('stroke','#ffffff').attr('stroke-width',1.5)
+        .style('cursor','pointer')
+        .on('mouseover', ev => showTT(tooltipEl, ev, pt, wrap))
+        .on('mouseout',  ()  => hideTT(tooltipEl));
+
+      // Name lines
+      const altLabel = Math.round(pt.ele) + ' m';
+      const nameGroup = gLbl.append('g').style('cursor','text');
+
+      // Invisible hover background (full pill area, triggers edit state)
+      const hoverBg = nameGroup.append('rect')
+        .attr('x', pillX).attr('y', flippedY)
+        .attr('width', pillW).attr('height', pillH)
+        .attr('rx', 4)
+        .attr('fill', 'transparent')
+        .style('cursor','text');
+
+      // Edit pencil — hidden by default, shown on hover
+      const editIcon = nameGroup.append('text')
+        .attr('x', pillX + pillW - 2)
+        .attr('y', flippedY + 11)
+        .attr('text-anchor', 'end')
+        .style('font-size','9px')
+        .style('fill', '#1a6adf')
+        .style('opacity', '0')
+        .style('pointer-events','none')
+        .style('transition','opacity .15s')
+        .text('✎');
+
+      // Name text rows
+      displayLines.forEach((ln,li) => {
+        nameGroup.append('text')
+          .attr('x', pillX+pillW/2)
+          .attr('y', flippedY+PAD_Y+LINE_H*(li+1))
+          .attr('text-anchor','middle')
+          .style('font-size',`${FONT_SZ}px`).style('fill','#1a2030')
+          .style('font-weight','700').style('pointer-events','none')
+          .text(ln);
+      });
+
+      // Altitude
+      nameGroup.append('text')
+        .attr('x', pillX+pillW/2)
+        .attr('y', flippedY+PAD_Y+LINE_H*nL+LINE_H)
+        .attr('text-anchor','middle')
+        .style('font-size',`${FONT_SZ-1}px`).style('fill','#8a96a8')
+        .style('font-weight','400').style('pointer-events','none')
+        .text(altLabel);
+
+      // Hover: show edit icon
+      nameGroup.on('mouseover', function(){
+        editIcon.style('opacity','0.55');
+        hoverBg.attr('fill','#1a6adf08');
+      });
+      nameGroup.on('mouseout', function(){
+        editIcon.style('opacity','0');
+        hoverBg.attr('fill','transparent');
+      });
+
+      // Click: open inline editor
+      nameGroup.on('click', function(event){
+        event.stopPropagation();
+        hideTT(tooltipEl);
+        // Compute anchor in page coords
+        const svgNode = svgEl;
+        const svgRect2 = svgNode.getBoundingClientRect();
+        const scaleX = svgRect2.width / W;
+        // Label centre in SVG coords = MARGIN.left + pillX + pillW/2, y = flippedY + pillH/2
+        const svgLabelX = (MARGIN.left + pillX + pillW/2) * scaleX + svgRect2.left;
+        const svgLabelY = ((flippedY + pillH/2) * (svgRect2.height / H)) + svgRect2.top;
+        openLabelEditor(pt, svgLabelX, svgLabelY, wrap, ()=>{
+          drawChart(t, container);
+          redrawMainJunctionDots();
+        });
+      });
+    });
+  }
+
+  // Junction dots layer (drawn on top, managed separately)
+  g.append('g').attr('class','junction-dots');
+
+  
+
+  // Cursor
+  const cLine=g.append('line').attr('y1',0).attr('y2',iH).attr('stroke','#ffffff22').attr('stroke-width',1).style('display','none').style('pointer-events','none');
+  const cDot=g.append('circle').attr('r',4).attr('fill',t.color).attr('stroke','#0c0f14').attr('stroke-width',2).style('display','none').style('pointer-events','none');
+
+  g.append('rect').attr('width',iW).attr('height',iH).attr('fill','transparent')
+    .on('mousemove',function(event){
+      const [mx]=d3.pointer(event);
+      const dist=xSc.invert(mx);
+      const idx=d3.bisectLeft(points.map(p=>p.dist),dist);
+      const pt=points[Math.min(idx,points.length-1)];
+      cLine.attr('x1',mx).attr('x2',mx).style('display',null);
+      cDot.attr('cx',xSc(pt.dist)).attr('cy',ySc(pt.ele)).style('display',null);
+      // tooltip
+      const tt=tooltipEl;
+      tt.style.display='block';
+      tt.innerHTML=`<div class="tt-row">${T.dist} : <span>${pt.dist.toFixed(2)} km</span></div>
+        <div class="tt-row">${T.altitude} : <span>${Math.round(pt.ele)} m</span></div>
+        ${pt.name?`<div class="tt-name">${pt.icon} ${pt.name}</div>`:''}`;
+      posTT(event,tt,wrap);
+      // map cursor
+      if(_cursorMarker){_cursorMarker.setLatLng([pt.lat,pt.lon]);_cursorMarker.setOpacity(1);}
+    })
+    .on('mouseleave',()=>{
+      cLine.style('display','none');cDot.style('display','none');hideTT(tooltipEl);
+      if(_cursorMarker)_cursorMarker.setOpacity(0);
+    });
+}
+
+function showTT(el,event,pt,wrap){
+  el.style.display='block';
+  el.innerHTML=`<div class="tt-name">${pt.icon} ${pt.name}</div>
+    ${pt.sym?`<div style="font-size:.7rem;color:#cc44ff">🏷 ${pt.sym}</div>`:''}
+    <div class="tt-row">Dist : <span>${pt.dist.toFixed(2)} km</span></div>
+    <div class="tt-row">Alt : <span>${Math.round(pt.ele)} m</span></div>
+    ${pt.desc?`<div style="color:#aab;font-size:.73rem;margin-top:3px">${pt.desc}</div>`:''}`;
+  posTT(event,el,wrap);
+}
+function hideTT(el){el.style.display='none';}
+function posTT(event,el,wrap){
+  const r=wrap.getBoundingClientRect();
+  let tx=event.clientX-r.left+12,ty=event.clientY-r.top-10;
+  if(tx+220>wrap.clientWidth)tx-=230; if(ty+100>wrap.clientHeight)ty-=80;
+  el.style.left=tx+'px';el.style.top=ty+'px';
+}
+
+// ════════════════════════════════════════════════════════════════
+// JUNCTION DOTS ON MAIN CHART
+// ════════════════════════════════════════════════════════════════
+function redrawMainJunctionDots(){
+  const main=_tracks.find(t=>t.type==='main');
+  if(!main||!main._chartG) return;
+  const jg=main._chartG.select('.junction-dots');
+  jg.selectAll('*').remove();
+
+  _tracks.filter(t=>t.type!=='main'&&t.visible).forEach(sec=>{
+    const color=TYPE_COLORS[sec.type];
+    const seen=new Set();
+    sec.points.forEach(sp=>{
+      let best=Infinity,bi=-1;
+      main.points.forEach((mp,mi)=>{const d=hav(sp.lat,sp.lon,mp.lat,mp.lon);if(d<best){best=d;bi=mi;}});
+      if(best<JUNCTION_RADIUS&&!seen.has(bi)){
+        seen.add(bi);
+        const mp=main.points[bi];
+        jg.append('circle')
+          .attr('cx',main._xSc(mp.dist)).attr('cy',main._ySc(mp.ele))
+          .attr('r',5).attr('fill',color).attr('stroke','#0c0f14').attr('stroke-width',1.5)
+          .style('cursor','pointer')
+          .on('mouseover',ev=>{
+            const el=main.chartEl.querySelector('.profile-tooltip');
+            el.style.display='block';
+            el.innerHTML=`<div class="tt-name" style="color:${color}">Jonction ${TYPE_LABELS[sec.type]}</div>
+              <div class="tt-row">Trace : <span>${sec.name}</span></div>
+              <div class="tt-row">Dist : <span>${mp.dist.toFixed(2)} km</span></div>
+              <div class="tt-row">Alt : <span>${Math.round(mp.ele)} m</span></div>`;
+            posTT(ev,el,main.chartEl.querySelector('.profile-body'));
+          })
+          .on('mouseout',()=>main.chartEl.querySelector('.profile-tooltip').style.display='none');
+      }
+    });
+  });
+}
+
+// ════════════════════════════════════════════════════════════════
+// SIDEBAR TRACK ITEM
+// ════════════════════════════════════════════════════════════════
+function buildTrackItem(t){
+  const div=document.createElement('div');
+  div.className='track-item';
+  div.dataset.id=t.id;
+  div.draggable=true;
+
+  const typeClass={main:'active-main',escape:'active-escape',alt:'active-alt'};
+
+  div.innerHTML=`
+    <div class="track-header">
+      <span class="drag-handle" style="cursor:grab;color:#aab;font-size:1rem;flex-shrink:0;user-select:none;padding-right:4px" title="Drag to reorder">⠿</span>
+      <div class="track-swatch" style="background:${t.color}"></div>
+      <div class="track-label" title="${t.name}">${t.name}</div>
+      <button class="track-toggle on" title="Afficher/masquer"></button>
+    </div>
+    <div class="track-body">
+      <div class="track-meta">
+        <div class="m"><b>${t.stats.totalDist.toFixed(1)}</b> km</div>
+        <div class="m">↑<b>${Math.round(t.stats.ascent)}</b>m</div>
+        <div class="m">↓<b>${Math.round(t.stats.descent)}</b>m</div>
+        <div class="m"><b>${t.roadbookPts.length}</b> ${T.rbPoints}</div>
+      </div>
+      <div class="type-row">
+        <button class="type-btn ${t.type==='main'?typeClass.main:''}" data-type="main">${T.principal}</button>
+        <button class="type-btn ${t.type==='escape'?typeClass.escape:''}" data-type="escape">${T.escape}</button>
+        <button class="type-btn ${t.type==='alt'?typeClass.alt:''}" data-type="alt">${T.alternative}</button>
+      </div>
+      <button class="delete-btn">${T.delete}</button>
+    </div>`;
+
+  // Toggle visibility
+  div.querySelector('.track-toggle').addEventListener('click',e=>{
+    e.stopPropagation();
+    const btn=e.currentTarget;
+    const visible=btn.classList.contains('off');
+    btn.classList.toggle('on',visible); btn.classList.toggle('off',!visible);
+    div.classList.toggle('hidden-track',!visible);
+    setTrackVisibility(t,visible);
+    // Show/hide profile
+    if(t.chartEl) t.chartEl.style.display=visible?'block':'none';
+  });
+
+  // Expand/collapse body on header click
+  const body=div.querySelector('.track-body');
+  body.style.display='block';
+  div.querySelector('.track-header').addEventListener('click',()=>{
+    body.style.display=body.style.display==='none'?'block':'none';
+  });
+
+  // Type buttons
+  div.querySelectorAll('.type-btn').forEach(btn=>{
+    btn.addEventListener('click',e=>{
+      const newType=e.currentTarget.dataset.type;
+      changeType(t,newType,div);
+    });
+  });
+
+  // Delete
+  div.querySelector('.delete-btn').addEventListener('click',()=>removeTrack(t.id));
+
+  return div;
+}
+
+function changeType(t, newType, itemEl){
+  t.type=newType;
+  t.color=TYPE_COLORS[newType];
+  // Update swatch
+  itemEl.querySelector('.track-swatch').style.background=t.color;
+  // Update type buttons
+  itemEl.querySelectorAll('.type-btn').forEach(b=>{
+    b.className='type-btn'+(b.dataset.type===newType?' active-'+newType:'');
+  });
+  // Redraw map
+  drawTrackOnMap(t);
+  if(!t.visible){_map.removeLayer(t.mapLayer);_map.removeLayer(t.markerLayer);}
+  // Update chart header
+  if(t.chartEl){
+    t.chartEl.querySelector('.profile-swatch').style.background=t.color;
+    const badge=t.chartEl.querySelector('.profile-type-badge');
+    badge.className='profile-type-badge';
+    badge.classList.add(newType==='main'?'active-main':newType==='escape'?'active-escape':'active-alt');
+    badge.style.background=t.color+'20';badge.style.color=t.color;
+    badge.textContent=TYPE_LABELS[newType];
+    // Redraw chart color
+    drawChart(t,t.chartEl);
+  }
+  computeJunctions();
+}
+
+function removeTrack(id){
+  const t=_tracks.find(t=>t.id===id);
+  if(!t) return;
+  if(t.mapLayer){t.mapLayer.remove();t.markerLayer.remove();}
+  if(t.junctionLayer) t.junctionLayer.remove();
+  if(t.chartEl) t.chartEl.remove();
+  document.querySelector(`.track-item[data-id="${id}"]`)?.remove();
+  _tracks=_tracks.filter(t=>t.id!==id);
+  computeJunctions();
+  if(!_tracks.length) document.getElementById('empty-state').style.display='flex';
+}
+
+// ════════════════════════════════════════════════════════════════
+// ADD TRACK
+// ════════════════════════════════════════════════════════════════
+function addTrack(parsed, filename){
+  initMap();
+  document.getElementById('empty-state').style.display='none';
+
+  const id=++_idCounter;
+  // Auto-type: first → main, rest → alt
+  const existingMain=_tracks.find(t=>t.type==='main');
+  const type=existingMain?'alt':'main';
+  const color=TYPE_COLORS[type];
+
+  const t={
+    id, name:parsed.trackName, type, color, visible:true,
+    points:parsed.points, roadbookPts:parsed.roadbookPts, stats:parsed,
+    mapLayer:null, markerLayer:null, junctionLayer:null, chartEl:null,
+  };
+  _tracks.push(t);
+
+  // Map
+  drawTrackOnMap(t);
+  fitAllTracks();
+
+  // Sidebar
+  const item=buildTrackItem(t);
+  document.getElementById('track-list').appendChild(item);
+
+  // Profile section
+  const section=document.createElement('div');
+  section.className='profile-section';
+  section.draggable=true;
+  section.innerHTML=`
+    <div class="profile-head">
+      <span class="drag-handle" style="cursor:grab;color:#aab;font-size:1rem;flex-shrink:0;user-select:none;padding-right:4px" title="Drag to reorder">⠿</span>
+      <div class="profile-swatch" style="background:${color}"></div>
+      <div class="profile-title">${parsed.trackName}</div>
+      <span class="profile-type-badge active-${type}" style="background:${color}20;color:${color}">${TYPE_LABELS[type]}</span>
+      <button class="export-btn">${T.exportPng}</button>
+    </div>
+    <div class="profile-body">
+      <svg class="pchart"></svg>
+      <div class="profile-tooltip"></div>
+    </div>`;
+  document.getElementById('profiles-wrap').appendChild(section);
+  t.chartEl=section;
+
+  section.querySelector('.export-btn').addEventListener('click',()=>exportChart(t));
+
+  // Draw chart — try immediately, then via ResizeObserver, then with delays
+  const _body2 = section.querySelector('.profile-body');
+  let _drawn2 = false;
+  function tryDrawChart(){
+    if(_drawn2) return;
+    const w = _body2.getBoundingClientRect().width || _body2.offsetWidth || _body2.clientWidth;
+    if(w > 50){
+      _drawn2 = true;
+      if(typeof _ro2 !== 'undefined') _ro2.disconnect();
+      drawChart(t, section);
+      computeJunctions();
+    }
+  }
+  const _ro2 = new ResizeObserver(tryDrawChart);
+  _ro2.observe(_body2);
+  // Multiple rAF + setTimeout fallbacks
+  requestAnimationFrame(()=>{ tryDrawChart(); requestAnimationFrame(tryDrawChart); });
+  setTimeout(tryDrawChart, 100);
+  setTimeout(tryDrawChart, 400);
+}
+
+// ════════════════════════════════════════════════════════════════
+// EXPORT
+// ════════════════════════════════════════════════════════════════
+function exportChart(t){
+  const svgEl=t.chartEl.querySelector('svg.pchart');
+  const str=new XMLSerializer().serializeToString(svgEl);
+  const canvas=document.createElement('canvas'),sc=2;
+  canvas.width=+svgEl.getAttribute('width')*sc;
+  canvas.height=+svgEl.getAttribute('height')*sc;
+  const ctx=canvas.getContext('2d');
+  ctx.fillStyle='#ffffff';ctx.fillRect(0,0,canvas.width,canvas.height);
+  const img=new Image(),blob=new Blob([str],{type:'image/svg+xml'}),url=URL.createObjectURL(blob);
+  img.onload=()=>{ctx.scale(sc,sc);ctx.drawImage(img,0,0);URL.revokeObjectURL(url);
+    const a=document.createElement('a');a.download=t.name+'_profil.png';a.href=canvas.toDataURL('image/png');a.click();};
+  img.src=url;
+}
+
+// ════════════════════════════════════════════════════════════════
+// FILE INPUT
+// ════════════════════════════════════════════════════════════════
+const dropZone=document.getElementById('drop-zone');
+const fileInput=document.getElementById('file-input');
+
+function handleFiles(files){
+  [...files].forEach(file=>{
+    if(!file.name.toLowerCase().endsWith('.gpx')) return;
+    const reader=new FileReader();
+    reader.onload=e=>{
+      try{const parsed=parseGPX(e.target.result,file.name);addTrack(parsed,file.name);}
+      catch(err){alert(T.errorIn+' '+file.name+' : '+err.message);}
+    };
+    reader.readAsText(file);
+  });
+}
+
+// Custom language dropdown
+(function(){
+  const FLAGS = {
+    fr:'https://flagcdn.com/w20/fr.png',
+    ca:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAPoAAACnCAMAAAAPIrEmAAAAIVBMVEX83QnaEhrrexL71grtgxH5zgruihD4xwvvkxD2vwz96FrmnCimAAAAsElEQVR4nO3YOREDQBDEwPX/8Afs9Bisq9SNYJTODAAAAAB/4Jo1lyzpRdKLpBdJL5JeJL1IepH0onL6LWv7GgQAAAA43bPK39z2gD3Si6QXSS+SXiS9SHqR9CLpRfPI2r4GAQAAAE7PrPI3tz1gj/Qi6UXSi6QXSS+SXiS9SHrRvLK2r0EAAACA0zur/M1tD9gjvUh6kfQi6UXSi6QXSS+SXjSfrO1rEAAAAOD0zfoBsWN7DbhlvD4AAAAASUVORK5CYII=',
+    es:'https://flagcdn.com/w20/es.png',
+    en:'https://flagcdn.com/w20/gb.png',
+  };
+  const NAMES = {fr:'Français', ca:'Català', es:'Español', en:'English'};
+  const dropdown = document.getElementById('lang-dropdown');
+  const menu     = document.getElementById('lang-menu');
+  const flagEl   = document.getElementById('lang-flag');
+  const nameEl   = document.getElementById('lang-name');
+
+  function selectLang(l){
+    flagEl.src = FLAGS[l]||'';
+    nameEl.textContent = NAMES[l]||l;
+    menu.querySelectorAll('.lang-opt').forEach(o=>o.classList.toggle('active',o.dataset.lang===l));
+    menu.classList.remove('open');
+    setLang(l);
+  }
+
+  // Init with fr
+  selectLang('fr');
+
+  document.getElementById('lang-current').addEventListener('click', e=>{
+    e.stopPropagation();
+    menu.classList.toggle('open');
+  });
+  menu.querySelectorAll('.lang-opt').forEach(opt=>{
+    opt.addEventListener('click', e=>{
+      e.stopPropagation();
+      selectLang(opt.dataset.lang);
+    });
+  });
+  document.addEventListener('click', ()=>menu.classList.remove('open'));
+
+  // Patch applyLang to sync dropdown label
+  const _orig = applyLang;
+  applyLang = function(){
+    _orig();
+    nameEl.textContent = NAMES[_lang]||_lang;
+    flagEl.src = FLAGS[_lang]||'';
+  };
+})();
+
+// Empty state add button triggers file input
+document.getElementById('empty-add-btn').addEventListener('click',()=>document.getElementById('file-input').click());
+
+// Map toggle switch
+(function(){
+  let mapVisible=false;
+  const sw    = document.getElementById('map-switch');
+  const knob  = document.getElementById('map-switch-knob');
+  const wrap  = document.getElementById('map-wrap');
+  const lbl   = document.getElementById('map-toggle-label');
+
+  function setMap(on){
+    mapVisible=on;
+    wrap.style.display=on?'block':'none';
+    sw.style.background=on?'var(--accent)':'#c8d0dc';
+    knob.style.left=on?'19px':'3px';
+    if(on&&_map){
+      setTimeout(()=>{
+        _map.invalidateSize();
+        const all=_tracks.filter(t=>t.mapLayer);
+        if(all.length){
+          const group=L.featureGroup(all.map(t=>t.mapLayer));
+          _map.fitBounds(group.getBounds(),{padding:[24,24]});
+        }
+      },50);
+    }
+  }
+
+  sw.style.cursor='pointer';
+  sw.parentElement.addEventListener('click',()=>setMap(!mapVisible));
+})();
+
+dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('drag-over');});
+dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('drag-over');handleFiles(e.dataTransfer.files);});
+fileInput.addEventListener('change',e=>{handleFiles(e.target.files);fileInput.value='';});
+
+// ════════════════════════════════════════════════════════════════
+// DRAG AND DROP REORDER
+// ════════════════════════════════════════════════════════════════
+function makeDraggable(container, itemSel, onReorder){
+  let src=null, fromHandle=false;
+
+  // Closest matching selector, walking up from el
+  function closest(el, sel){
+    while(el && el!==container){
+      if(el.matches && el.matches(sel)) return el;
+      el=el.parentElement;
+    }
+    return null;
+  }
+
+  container.addEventListener('mousedown', e=>{
+    fromHandle = !!(e.target.closest ? e.target.closest('.drag-handle') : false);
+  }, true);
+
+  container.addEventListener('dragstart', e=>{
+    if(!fromHandle){ e.preventDefault(); return; }
+    src = closest(e.target, itemSel);
+    if(!src){ e.preventDefault(); return; }
+    e.dataTransfer.effectAllowed='move';
+    e.dataTransfer.setData('text/plain','');
+    requestAnimationFrame(()=>{ if(src) src.classList.add('dragging'); });
+  });
+
+  container.addEventListener('dragover', e=>{
+    if(!src) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect='move';
+    const over=closest(e.target, itemSel);
+    container.querySelectorAll(itemSel).forEach(el=>el.classList.remove('drag-over-top','drag-over-bottom'));
+    if(over && over!==src){
+      const r=over.getBoundingClientRect();
+      over.classList.add(e.clientY<r.top+r.height/2?'drag-over-top':'drag-over-bottom');
+    }
+  });
+
+  container.addEventListener('dragleave', e=>{
+    if(!e.relatedTarget || !container.contains(e.relatedTarget)){
+      container.querySelectorAll(itemSel).forEach(el=>el.classList.remove('drag-over-top','drag-over-bottom'));
+    }
+  });
+
+  container.addEventListener('drop', e=>{
+    e.preventDefault();
+    if(!src) return;
+    const over=closest(e.target, itemSel);
+    const savedSrc=src;
+    cleanup();
+    if(!over||over===savedSrc) return;
+    const r=over.getBoundingClientRect();
+    container.insertBefore(savedSrc, e.clientY<r.top+r.height/2 ? over : over.nextSibling);
+    onReorder();
+  });
+
+  container.addEventListener('dragend', cleanup);
+
+  function cleanup(){
+    if(src) src.classList.remove('dragging');
+    src=null; fromHandle=false;
+    container.querySelectorAll(itemSel).forEach(el=>el.classList.remove('drag-over-top','drag-over-bottom'));
+  }
+}
+
+function syncFromSidebar(){
+  const tl=document.getElementById('track-list');
+  const pw=document.getElementById('profiles-wrap');
+  const order=[...tl.querySelectorAll('.track-item')].map(el=>_tracks.find(t=>t.id===+el.dataset.id)).filter(Boolean);
+  _tracks.length=0; order.forEach(t=>_tracks.push(t));
+  order.forEach(t=>{ if(t.chartEl) pw.appendChild(t.chartEl); });
+}
+function syncFromProfiles(){
+  const tl=document.getElementById('track-list');
+  const pw=document.getElementById('profiles-wrap');
+  const order=[...pw.querySelectorAll('.profile-section')].map(el=>_tracks.find(t=>t.chartEl===el)).filter(Boolean);
+  _tracks.length=0; order.forEach(t=>_tracks.push(t));
+  order.forEach(t=>{ const item=tl.querySelector(`.track-item[data-id="${t.id}"]`); if(item) tl.appendChild(item); });
+}
+setTimeout(()=>{
+  makeDraggable(document.getElementById('track-list'), '.track-item', syncFromSidebar);
+  makeDraggable(document.getElementById('profiles-wrap'), '.profile-section', syncFromProfiles);
+},300);
+
+// Resize
+// Apply default language on load
+applyLang();
+
+// ════════════════════════════════════════════════════════════════
+// EMPTY STATE ANIMATION
+// ════════════════════════════════════════════════════════════════
+(function(){
+  const clipRect = document.getElementById('clip-rect');
+  const dots     = [...document.querySelectorAll('.rb-pt')];
+  const msgEl    = document.getElementById('empty-state-text');
+  let animFrame  = null;
+  let startTime  = null;
+  const DURATION = 2200; // ms to draw the line
+  const DOT_DELAYS = [0.35, 0.58, 0.82]; // fraction of DURATION when each dot appears
+
+  function easeInOut(t){ return t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2; }
+
+  function step(ts){
+    if(!startTime) startTime=ts;
+    const raw=Math.min((ts-startTime)/DURATION,1);
+    const t=easeInOut(raw);
+
+    // Expand clip rect to reveal line + area
+    if(clipRect) clipRect.setAttribute('width', Math.round(t*600));
+
+    // Dots fade in at their delay threshold
+    dots.forEach((dot,i)=>{
+      const threshold=DOT_DELAYS[i];
+      const dotT=Math.max(0,Math.min(1,(raw-threshold)/0.12));
+      dot.style.opacity=dotT.toFixed(3);
+    });
+
+    if(raw<1){ animFrame=requestAnimationFrame(step); }
+    else{
+      // Loop after a pause
+      setTimeout(()=>{
+        // Only replay if still in empty state
+        if(document.getElementById('empty-state').style.display!=='none'){
+          startTime=null;
+          dots.forEach(d=>d.style.opacity='0');
+          if(clipRect) clipRect.setAttribute('width','0');
+          setTimeout(()=>{ animFrame=requestAnimationFrame(step); },400);
+        }
+      },2800);
+    }
+  }
+
+  // Update message text on lang change (applyLang hooks in below)
+  function updateMsg(){
+    if(msgEl) msgEl.textContent=T.importMsg||'';
+  }
+  // Patch applyLang to also update anim message
+  const _origApply=applyLang;
+  applyLang=function(){_origApply();updateMsg();};
+  updateMsg();
+
+  // Start animation
+  animFrame=requestAnimationFrame(step);
+})();
+
+window.addEventListener('resize',()=>{
+  _tracks.forEach(t=>{if(t.chartEl&&t.visible)drawChart(t,t.chartEl);});
+  setTimeout(redrawMainJunctionDots,100);
+});
+</script>
+</body>
+</html>
