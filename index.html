@@ -147,6 +147,12 @@ main{display:flex;flex-direction:column;min-height:0;overflow:hidden;}
 .leg-row{display:flex;align-items:center;gap:7px;color:#4a5870;}
 .leg-line{width:20px;height:3px;border-radius:2px;}
 .leg-dot{width:9px;height:9px;border-radius:50%;}
+
+/* MATÉ MODAL */
+#mate-modal-overlay{display:none;position:fixed;inset:0;background:#00000055;z-index:2000;align-items:center;justify-content:center;}
+#mate-modal-overlay.open{display:flex;}
+#mate-modal{background:var(--surface);border-radius:10px;min-width:280px;min-height:160px;position:relative;box-shadow:0 8px 30px #0003;}
+#mate-modal-close{position:absolute;top:8px;right:10px;background:none;border:none;font-size:1.2rem;line-height:1;color:var(--muted);cursor:pointer;}
 </style>
 </head>
 <body>
@@ -155,6 +161,7 @@ main{display:flex;flex-direction:column;min-height:0;overflow:hidden;}
   <h1>Elevate</h1>
   <span class="badge">Génération de profils d'élévation</span>
   <div id="header-controls" style="display:flex;align-items:center;gap:14px;margin-left:auto;">
+    <button id="mate-btn" style="padding:6px 14px;background:#eef2f8;border:1px solid var(--border);border-radius:5px;color:var(--accent);font-size:.75rem;cursor:pointer;">Invite me a Maté</button>
     <!-- Map toggle switch -->
     <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:.75rem;color:var(--muted);user-select:none;">
       <span id="map-toggle-label">Carte</span>
@@ -183,6 +190,12 @@ main{display:flex;flex-direction:column;min-height:0;overflow:hidden;}
     </div>
   </div>
 </header>
+
+<div id="mate-modal-overlay">
+  <div id="mate-modal">
+    <button id="mate-modal-close">&times;</button>
+  </div>
+</div>
 
 <div class="app">
   <!-- SIDEBAR -->
@@ -1392,6 +1405,14 @@ window.addEventListener('resize',()=>{
   _tracks.forEach(t=>{if(t.chartEl&&t.visible)drawChart(t,t.chartEl);});
   setTimeout(redrawMainJunctionDots,100);
 });
+
+// MATÉ MODAL
+const mateBtn=document.getElementById('mate-btn');
+const mateOverlay=document.getElementById('mate-modal-overlay');
+const mateClose=document.getElementById('mate-modal-close');
+mateBtn.addEventListener('click',()=>mateOverlay.classList.add('open'));
+mateClose.addEventListener('click',()=>mateOverlay.classList.remove('open'));
+mateOverlay.addEventListener('click',(e)=>{if(e.target===mateOverlay)mateOverlay.classList.remove('open');});
 </script>
 </body>
 </html>
