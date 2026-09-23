@@ -43,7 +43,11 @@ aside{background:var(--surface);border-right:1px solid var(--border);display:fle
 
 #track-list{flex:1;overflow-y:auto;padding:8px;}
 .track-item{background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden;transition:border-color .2s;}
-.track-item.hidden-track{opacity:.45;}
+.track-item.hidden-track .drag-handle,
+.track-item.hidden-track .track-swatch,
+.track-item.hidden-track .track-label,
+.track-item.hidden-track .track-toggle,
+.track-item.hidden-track .track-body{opacity:.45;}
 .track-header{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;}
 .track-swatch{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
 .track-label{flex:1;font-size:.8rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -53,7 +57,7 @@ aside{background:var(--surface);border-right:1px solid var(--border);display:fle
 .track-toggle.off{background:#c8d0dc;}.track-toggle.off::after{left:2px;}
 .track-body{padding:0 12px 10px;border-top:1px solid var(--border);}
 .track-meta{display:flex;gap:10px;padding:8px 0 6px;flex-wrap:wrap;}
-.track-meta .m{font-size:.7rem;color:var(--muted);}.track-meta .m b{color:var(--text);}
+.track-meta .m{font-size:.7rem;color:var(--text);}.track-meta .m b{color:var(--text);}
 .type-row{display:flex;gap:5px;margin-bottom:0;}
 .type-btn{flex:1;padding:4px 2px;border:1px solid var(--border);border-radius:5px;background:transparent;color:var(--muted);font-size:.68rem;cursor:pointer;text-align:center;transition:all .15s;letter-spacing:.03em;}
 .type-btn:hover{border-color:var(--accent);color:var(--text);}
@@ -160,9 +164,8 @@ main{display:flex;flex-direction:column;min-height:0;overflow:hidden;}
   <h1>Elevate</h1>
   <span class="badge">Génération de profils d'élévation</span>
   <div id="header-controls" style="display:flex;align-items:center;gap:14px;margin-left:auto;">
-    <a id="mate-btn" href="https://buy.stripe.com/8x2fZgafL8bG33I62L2kw00" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:6px;padding:6px 14px;background:#eef2f8;border:1px solid var(--border);border-radius:5px;color:var(--accent);font-size:.75rem;cursor:pointer;text-decoration:none;"><img src="data:image/png;base64,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" alt="" style="width:16px;height:16px;"/><span id="mate-btn-text">Offer me a Maté</span></a>
-    <!-- Map toggle switch -->
-    <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:.75rem;color:var(--muted);user-select:none;">
+    <!-- Map toggle switch — shown only once a GPX is imported -->
+    <label id="map-toggle-wrap" style="display:none;align-items:center;gap:7px;cursor:pointer;font-size:.75rem;color:var(--muted);user-select:none;">
       <span id="map-toggle-label">Carte</span>
       <span id="map-switch" style="
         position:relative;display:inline-block;width:36px;height:20px;
@@ -174,6 +177,7 @@ main{display:flex;flex-direction:column;min-height:0;overflow:hidden;}
         </span>
       </span>
     </label>
+    <a id="mate-btn" href="https://buy.stripe.com/8x2fZgafL8bG33I62L2kw00" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;gap:6px;padding:6px 14px;background:#eef2f8;border:1px solid var(--border);border-radius:5px;color:var(--accent);font-size:.75rem;cursor:pointer;text-decoration:none;"><img src="data:image/png;base64,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" alt="" style="width:16px;height:16px;"/><span id="mate-btn-text">Offer me a Maté</span>    </a>
     <div id="lang-dropdown">
       <div id="lang-current">
         <img id="lang-flag" src="" alt=""/>
@@ -279,6 +283,7 @@ main{display:flex;flex-direction:column;min-height:0;overflow:hidden;}
 // ════════════════════════════════════════════════════════════════
 const TYPE_COLORS = { main:'#ff3355', escape:'#cc44ff', alt:'#00ff88' };
 const TYPE_LABELS = { main:'Principal', escape:'Escape', alt:'Alternative' }; // updated by setLang
+function typeColor(type){ return TYPE_COLORS[type] || TYPE_COLORS.main; }
 const JUNCTION_RADIUS = 0.08;
 
 // ════════════════════════════════════════════════════════════════
@@ -290,7 +295,7 @@ const LANGS = {
     itineraires:"Itinéraires", addGpx:"Ajouter des GPX", dropText:"Glissez un ou plusieurs fichiers",
     principal:"Principal", escape:"Escape", alternative:"Alternative",
     delete:"Supprimer", distance:"Distance", ascent:"Dénivelé +", descent:"Dénivelé −",
-    rbPoints:"pts roadbook", exportPng:"⬇ PNG",
+    rbPoints:"waypoints", exportPng:"⬇ PNG",
     departure:"Départ", arrival:"Arrivée", junction:"Jonction",
     track:"Trace", altitude:"Alt.", dist:"Dist.",
     secType_escape:"escape", secType_alt:"alternatif",
@@ -307,7 +312,7 @@ const LANGS = {
     itineraires:"Itineraris", addGpx:"Afegir GPX", dropText:"Arrossegueu un o diversos fitxers",
     principal:"Principal", escape:"Escapada", alternative:"Alternativa",
     delete:"Eliminar", distance:"Distància", ascent:"Desnivell +", descent:"Desnivell −",
-    rbPoints:"pts roadbook", exportPng:"⬇ PNG",
+    rbPoints:"waypoints", exportPng:"⬇ PNG",
     departure:"Sortida", arrival:"Arribada", junction:"Cruïlla",
     track:"Traçat", altitude:"Alt.", dist:"Dist.",
     secType_escape:"escapada", secType_alt:"alternatiu",
@@ -324,7 +329,7 @@ const LANGS = {
     itineraires:"Itinerarios", addGpx:"Añadir GPX", dropText:"Arrastre uno o varios archivos",
     principal:"Principal", escape:"Escape", alternative:"Alternativa",
     delete:"Eliminar", distance:"Distancia", ascent:"Desnivel +", descent:"Desnivel −",
-    rbPoints:"pts roadbook", exportPng:"⬇ PNG",
+    rbPoints:"waypoints", exportPng:"⬇ PNG",
     departure:"Salida", arrival:"Llegada", junction:"Enlace",
     track:"Traza", altitude:"Alt.", dist:"Dist.",
     secType_escape:"escape", secType_alt:"alternativo",
@@ -341,7 +346,7 @@ const LANGS = {
     itineraires:"Routes", addGpx:"Add GPX", dropText:"Drop one or more files",
     principal:"Main", escape:"Escape", alternative:"Alternative",
     delete:"Delete", distance:"Distance", ascent:"Ascent", descent:"Descent",
-    rbPoints:"roadbook pts", exportPng:"⬇ PNG",
+    rbPoints:"waypoints", exportPng:"⬇ PNG",
     departure:"Start", arrival:"Finish", junction:"Junction",
     track:"Track", altitude:"Alt.", dist:"Dist.",
     secType_escape:"escape", secType_alt:"alternative",
@@ -396,6 +401,7 @@ function applyLang(){
   document.querySelectorAll('.type-btn[data-type="alt"]').forEach(b=>b.textContent=T.alternative);
   document.querySelectorAll('.delete-btn').forEach(b=>b.textContent=T.delete);
   document.querySelectorAll('.export-btn').forEach(b=>b.textContent=T.exportPng);
+  document.querySelectorAll('.rb-points-label').forEach(el=>el.textContent=T.rbPoints);
   // TYPE_LABELS used for badges and popups
   TYPE_LABELS.main = T.principal;
   TYPE_LABELS.escape = T.escape;
@@ -594,6 +600,8 @@ function wrapText(txt,max){
 }
 
 function drawChart(t, container){
+  const color       = typeColor(t.type);
+  t.color           = color;
   const points      = t.points;
   const roadbookPts = t.roadbookPts;
   const eleMin      = t.stats.eleMin;
@@ -668,13 +676,13 @@ function drawChart(t, container){
   const svg = d3.select(svgEl).attr('width',W).attr('height',H);
   svg.selectAll('*').remove();
 
-  const uid  = 'g'+t.id;
+  const uid  = 't'+t.id;
   const defs = svg.append('defs');
-  const grad = defs.append('linearGradient').attr('id','ag'+uid)
+  const grad = defs.append('linearGradient').attr('id','elev-ag-'+uid)
     .attr('x1',0).attr('y1',0).attr('x2',0).attr('y2',1);
-  grad.append('stop').attr('offset','0%').attr('stop-color',t.color).attr('stop-opacity',.45);
-  grad.append('stop').attr('offset','100%').attr('stop-color',t.color).attr('stop-opacity',.03);
-  defs.append('clipPath').attr('id','cp'+uid)
+  grad.append('stop').attr('offset','0%').attr('stop-color',color).attr('stop-opacity',.45);
+  grad.append('stop').attr('offset','100%').attr('stop-color',color).attr('stop-opacity',.03);
+  defs.append('clipPath').attr('id','elev-cp-'+uid)
     .append('rect').attr('width',iW).attr('height',iH);
 
   // Separator line between label zone and curve zone
@@ -716,8 +724,11 @@ function drawChart(t, container){
   // Area fill + curve line
   const area   = d3.area().x(d=>xSc(d.dist)).y0(iH).y1(d=>ySc(d.ele)).curve(d3.curveCatmullRom.alpha(.5));
   const lineFn = d3.line().x(d=>xSc(d.dist)).y(d=>ySc(d.ele)).curve(d3.curveCatmullRom.alpha(.5));
-  g.append('path').datum(points).attr('d',area).attr('fill',`url(#ag${uid})`).attr('clip-path',`url(#cp${uid})`);
-  g.append('path').datum(points).attr('d',lineFn).attr('fill','none').attr('stroke',t.color).attr('stroke-width',2).attr('clip-path',`url(#cp${uid})`);
+  g.append('path').datum(points).attr('d',area).attr('fill',`url(#elev-ag-${uid})`).attr('clip-path',`url(#elev-cp-${uid})`);
+  g.append('path').datum(points).attr('d',lineFn).attr('fill','none').attr('stroke',color).attr('stroke-width',2).attr('clip-path',`url(#elev-cp-${uid})`);
+
+  // Junction dots sit behind this track's own waypoint circles
+  g.append('g').attr('class','junction-dots');
 
   // ── Label group (absolute SVG coords from top) ─────────────────
   const gLbl = svg.append('g').attr('transform',`translate(${MARGIN.left},0)`);
@@ -786,17 +797,17 @@ function drawChart(t, container){
       // Dashed tick column in curve zone
       g.append('line')
         .attr('x1',dotX).attr('y1',0).attr('x2',dotX).attr('y2',iH)
-        .attr('stroke',t.color+'18').attr('stroke-width',1).attr('stroke-dasharray','3 3');
+        .attr('stroke',color+'18').attr('stroke-width',1).attr('stroke-dasharray','3 3');
 
       // Connector from pill bottom to separator
       gLbl.append('line')
         .attr('x1',dotX).attr('y1',flippedY+pillH+2)
         .attr('x2',dotX).attr('y2',LABEL_ZONE_H+6)
-        .attr('stroke',t.color+'44').attr('stroke-width',1).attr('stroke-dasharray','3 2');
+        .attr('stroke',color+'44').attr('stroke-width',1).attr('stroke-dasharray','3 2');
 
-      // Dot on curve — colour by track type
-      g.append('circle').attr('cx',dotX).attr('cy',dotY).attr('r',5)
-        .attr('fill',t.color).attr('stroke','#ffffff').attr('stroke-width',1.5)
+      // Dot on curve — colour by this track's type only
+      g.append('circle').attr('class','rb-dot').attr('cx',dotX).attr('cy',dotY).attr('r',5)
+        .attr('fill',color).attr('stroke','#ffffff').attr('stroke-width',1.5)
         .style('cursor','pointer')
         .on('mouseover', ev => showTT(tooltipEl, ev, pt, wrap))
         .on('mouseout',  ()  => hideTT(tooltipEl));
@@ -874,14 +885,9 @@ function drawChart(t, container){
     });
   }
 
-  // Junction dots layer (drawn on top, managed separately)
-  g.append('g').attr('class','junction-dots');
-
-  
-
   // Cursor
   const cLine=g.append('line').attr('y1',0).attr('y2',iH).attr('stroke','#ffffff22').attr('stroke-width',1).style('display','none').style('pointer-events','none');
-  const cDot=g.append('circle').attr('r',4).attr('fill',t.color).attr('stroke','#0c0f14').attr('stroke-width',2).style('display','none').style('pointer-events','none');
+  const cDot=g.append('circle').attr('r',4).attr('fill',color).attr('stroke','#0c0f14').attr('stroke-width',2).style('display','none').style('pointer-events','none');
 
   g.append('rect').attr('width',iW).attr('height',iH).attr('fill','transparent')
     .on('mousemove',function(event){
@@ -928,13 +934,14 @@ function posTT(event,el,wrap){
 // JUNCTION DOTS ON MAIN CHART
 // ════════════════════════════════════════════════════════════════
 function redrawMainJunctionDots(){
-  const main=_tracks.find(t=>t.type==='main');
+  const main=_tracks.find(tr=>tr.type==='main');
   if(!main||!main._chartG) return;
   const jg=main._chartG.select('.junction-dots');
+  if(jg.empty()) return;
   jg.selectAll('*').remove();
 
-  _tracks.filter(t=>t.type!=='main'&&t.visible).forEach(sec=>{
-    const color=TYPE_COLORS[sec.type];
+  _tracks.filter(tr=>tr.type!=='main'&&tr.visible).forEach(sec=>{
+    const color=typeColor(sec.type);
     const seen=new Set();
     sec.points.forEach(sp=>{
       let best=Infinity,bi=-1;
@@ -943,6 +950,7 @@ function redrawMainJunctionDots(){
         seen.add(bi);
         const mp=main.points[bi];
         jg.append('circle')
+          .attr('class','junc-dot')
           .attr('cx',main._xSc(mp.dist)).attr('cy',main._ySc(mp.ele))
           .attr('r',5).attr('fill',color).attr('stroke','#0c0f14').attr('stroke-width',1.5)
           .style('cursor','pointer')
@@ -959,6 +967,13 @@ function redrawMainJunctionDots(){
       }
     });
   });
+
+  // Waypoint dots always keep this chart's type color (Principal red, Escape purple, Alt green)
+  _tracks.forEach(tr=>{
+    if(!tr.chartEl) return;
+    d3.select(tr.chartEl).selectAll('circle.rb-dot').attr('fill', typeColor(tr.type));
+  });
+  main._chartG.selectAll('circle.rb-dot').raise();
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -984,7 +999,7 @@ function buildTrackItem(t){
         <div class="m"><b>${t.stats.totalDist.toFixed(1)}</b> km</div>
         <div class="m">↑<b>${Math.round(t.stats.ascent)}</b>m</div>
         <div class="m">↓<b>${Math.round(t.stats.descent)}</b>m</div>
-        <div class="m"><b>${t.roadbookPts.length}</b> ${T.rbPoints}</div>
+        <div class="m"><b>${t.roadbookPts.length}</b> <span class="rb-points-label">${T.rbPoints}</span></div>
       </div>
       <div class="type-row">
         <button class="type-btn ${t.type==='main'?typeClass.main:''}" data-type="main">${T.principal}</button>
@@ -1029,7 +1044,7 @@ function buildTrackItem(t){
 
 function changeType(t, newType, itemEl){
   t.type=newType;
-  t.color=TYPE_COLORS[newType];
+  t.color=typeColor(newType);
   // Update swatch
   itemEl.querySelector('.track-swatch').style.background=t.color;
   // Update type buttons
@@ -1047,9 +1062,12 @@ function changeType(t, newType, itemEl){
     badge.classList.add(newType==='main'?'active-main':newType==='escape'?'active-escape':'active-alt');
     badge.style.background=t.color+'20';badge.style.color=t.color;
     badge.textContent=TYPE_LABELS[newType];
-    // Redraw chart color
-    drawChart(t,t.chartEl);
   }
+  // Redraw every profile so each graph's waypoint dots stay bound to its own type
+  _tracks.forEach(tr=>{
+    tr.color=typeColor(tr.type);
+    if(tr.chartEl&&tr.visible) drawChart(tr,tr.chartEl);
+  });
   computeJunctions();
 }
 
@@ -1063,6 +1081,7 @@ function removeTrack(id){
   _tracks=_tracks.filter(t=>t.id!==id);
   computeJunctions();
   if(!_tracks.length) document.getElementById('empty-state').style.display='flex';
+  updateMapToggleVisibility();
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -1084,6 +1103,7 @@ function addTrack(parsed, filename){
     mapLayer:null, markerLayer:null, junctionLayer:null, chartEl:null,
   };
   _tracks.push(t);
+  updateMapToggleVisibility();
 
   // Map
   drawTrackOnMap(t);
@@ -1220,12 +1240,18 @@ function handleFiles(files){
 document.getElementById('empty-add-btn').addEventListener('click',()=>document.getElementById('file-input').click());
 
 // Map toggle switch
+let setMapVisible=()=>{};
+function updateMapToggleVisibility(){
+  const toggle=document.getElementById('map-toggle-wrap');
+  const hasTracks=!!_tracks.length;
+  toggle.style.display=hasTracks?'flex':'none';
+  if(!hasTracks) setMapVisible(false);
+}
 (function(){
   let mapVisible=false;
   const sw    = document.getElementById('map-switch');
   const knob  = document.getElementById('map-switch-knob');
   const wrap  = document.getElementById('map-wrap');
-  const lbl   = document.getElementById('map-toggle-label');
 
   function setMap(on){
     mapVisible=on;
@@ -1243,6 +1269,7 @@ document.getElementById('empty-add-btn').addEventListener('click',()=>document.g
       },50);
     }
   }
+  setMapVisible=setMap;
 
   sw.style.cursor='pointer';
   sw.parentElement.addEventListener('click',()=>setMap(!mapVisible));
